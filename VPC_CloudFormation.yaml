@@ -136,6 +136,9 @@ Resources:
   # Cria uma Rota para o IGW
   myRouteIGW:
     Type: AWS::EC2::Route
+    DependsOn:
+      - myIGW
+      - myAttachGateway
     Properties:
       RouteTableId: !Ref myRTPublic
       DestinationCidrBlock: 0.0.0.0/0

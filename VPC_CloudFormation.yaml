@@ -1,0 +1,187 @@
+# CloudFormation para criação de VPC
+# Cria uma VPC com o Range: 10.100.0.0/21
+# Cria e atacha um IGW
+# Cria duas VPC Public: 10.100.0.0/24 e 10.100.1.0/24 (Cada subnet em uma AZ)
+# Cria duas VPC Private: 10.100.2.0/24 e 10.100.3.0/24 (Cada subnet em uma AZ)
+# Cria e atacha um EIP para o NAT Gateway
+# Cria um NAT Gateway na primeira Subnet Public
+# Cria uma Route Table Public e uma Private
+# Cria uma Rota para o IGW na Route Table Public e uma Rota para o NATG na Route Table Private
+# Associa as Subnets Public a Route Table Public e as Subnets Private a Route Table Private
+
+# Tags de Name a serem alteradas:
+# VPC_Name
+# IGW_Name
+# SB_Pub01_Name
+# SB_Pub02_Name
+# SB_Priv01_Name
+# SB_Priv02_Name
+# NATG_EIP_Name
+# NAT_Gateway_Name
+# RT_Public_Name
+# RT_Private_Name
+
+Resources:
+  # Criando a VPC
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      # VPC Range: 10.100.0.0/21
+      CidrBlock: 10.100.0.0/21
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: VPC_Name
+
+  # Criando o InternetGateway
+  myIGW:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: myVPC
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IGW_Name
+
+  # Atachando o InternetGateway a VPC
+  myAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref myVPC
+      InternetGatewayId: !Ref myIGW
+
+  # Criando a primeira Subnet Public
+  mySubnetPublic01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      # Subnet Public 01 Range: 10.100.0.0/24
+      CidrBlock: 10.100.0.0/24
+      # Habilita endereço IPv4 Public automático
+      MapPublicIpOnLaunch: true
+      # Cria a Subnet na primeira AZ (Ex.: us-east-1a)
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: SB_Pub01_Name
+
+  # Criando a segunda Subnet Public
+  mySubnetPublic02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      # Subnet Public 02 Range: 10.100.1.0/24
+      CidrBlock: 10.100.1.0/24
+      # Habilita endereço IPv4 Public automático
+      MapPublicIpOnLaunch: true
+      # Cria a Subnet na primeira AZ (Ex.: us-east-1b)
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: SB_Pub02_Name
+
+  # Criando a primeira Subnet Private
+  mySubnetPrivate01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      # Subnet Private 01 Range: 10.100.2.0/24
+      CidrBlock: 10.100.2.0/24
+      # Cria a Subnet na primeira AZ (Ex.: us-east-1a)
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: SB_Priv01_Name
+
+  # Criando a segunda Subnet Private
+  mySubnetPrivate02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myVPC
+      # Subnet Private 02 Range: 10.100.3.0/24
+      CidrBlock: 10.100.3.0/24
+      # Cria a Subnet na primeira AZ (Ex.: us-east-1b)
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: SB_Priv02_Name
+
+  # Criando o Elastic IP para o NAT Gateway
+  myEIPNATGateway:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags:
+        - Key: Name
+          Value: NATG_EIP_Name
+
+  # Criando o NAT Gateway
+  myNATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt myEIPNATGateway.AllocationId
+      SubnetId: !Ref mySubnetPublic01
+      Tags:
+        - Key: Name
+          Value: NAT_Gateway_Name
+
+  # Cria uma Route Table Public
+  myRTPublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: RT_Public_Name
+
+  # Cria uma Rota para o IGW
+  myRouteIGW:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myRTPublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myIGW
+
+  # Associa a primeira Subnet Public na Route Table Public
+  myRouteTableAssociationPublic01:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref myRTPublic
+      SubnetId: !Ref mySubnetPublic01
+
+  # Associa a segunda Subnet Public na Route Table Public
+  myRouteTableAssociationPublic02:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref myRTPublic
+      SubnetId: !Ref mySubnetPublic02
+
+  # Cria uma Route Table Private
+  myRTPrivate:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: RT_Private_Name
+
+  # Cria uma Rota para o NATG
+  myRouteNATG:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myRTPrivate
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref myNATGateway
+
+  # Associa a primeira Subnet Private na Route Table Private
+  myRouteTableAssociationPrivate01:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref myRTPrivate
+      SubnetId: !Ref mySubnetPrivate01
+
+  # Associa a segunda Subnet Private na Route Table Private
+  myRouteTableAssociationPrivate02:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref myRTPrivate
+      SubnetId: !Ref mySubnetPrivate02
